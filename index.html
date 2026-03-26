@@ -1,0 +1,728 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI Agents — Interactive Map</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3CradialGradient id='g' cx='40%25' cy='35%25' r='65%25'%3E%3Cstop offset='0%25' stop-color='%23c4b5fd'/%3E%3Cstop offset='100%25' stop-color='%237c3aed'/%3E%3C/radialGradient%3E%3C/defs%3E%3Crect width='32' height='32' rx='8' fill='%2309090f'/%3E%3Cpolygon points='16,4 26,9.5 26,20.5 16,26 6,20.5 6,9.5' fill='none' stroke='url(%23g)' stroke-width='1.8'/%3E%3Ccircle cx='16' cy='15' r='3.5' fill='url(%23g)'/%3E%3Ccircle cx='16' cy='5.5' r='1.8' fill='%23a78bfa'/%3E%3Ccircle cx='25.5' cy='10.5' r='1.8' fill='%23a78bfa'/%3E%3Ccircle cx='25.5' cy='21' r='1.8' fill='%2334d399'/%3E%3Ccircle cx='16' cy='26' r='1.8' fill='%23fbbf24'/%3E%3Ccircle cx='6.5' cy='21' r='1.8' fill='%23f472b6'/%3E%3Ccircle cx='6.5' cy='10.5' r='1.8' fill='%23f472b6'/%3E%3C/svg%3E">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;text-rendering:optimizeLegibility}
+
+:root{
+  --bg:#09090f;
+  --surface:#0f0f1a;
+  --surface2:#161625;
+  --border:rgba(255,255,255,0.07);
+  --border2:rgba(255,255,255,0.12);
+  --text:#f0eeff;
+  --muted:#7a7896;
+  --lav:#c4b5fd;
+  --lav2:#a78bfa;
+  --lav3:#7c3aed;
+  --cyan:#67e8f9;
+  --green:#86efac;
+  --rose:#fda4af;
+  --amber:#fcd34d;
+  --pink:#f0abfc;
+}
+
+html,body{width:100%;height:100%;overflow:hidden}
+
+body{
+  background:var(--bg);
+  font-family:'Plus Jakarta Sans',sans-serif;
+  color:var(--text);
+  position:relative;
+}
+
+/* Grid lines background */
+body::before{
+  content:'';
+  position:fixed;inset:0;
+  background-image:
+    linear-gradient(rgba(196,181,253,0.03) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(196,181,253,0.03) 1px,transparent 1px);
+  background-size:60px 60px;
+  pointer-events:none;z-index:0;
+}
+
+/* Ambient glow blobs */
+.blob{
+  position:fixed;border-radius:50%;filter:blur(120px);
+  pointer-events:none;z-index:0;opacity:0.18;
+}
+.blob1{width:600px;height:600px;background:#7c3aed;top:-200px;left:-100px;}
+.blob2{width:500px;height:500px;background:#0891b2;bottom:-150px;right:-100px;}
+.blob3{width:400px;height:400px;background:#be185d;top:40%;left:40%;transform:translate(-50%,-50%);}
+
+/* ── Top bar ── */
+#topbar{
+  position:fixed;top:0;left:0;right:0;z-index:50;
+  display:flex;align-items:center;justify-content:space-between;
+  padding:0 28px;height:60px;
+  background:rgba(9,9,15,0.85);
+  backdrop-filter:blur(20px);
+  border-bottom:1px solid var(--border);
+}
+
+.logo{
+  font-family:'Space Grotesk',sans-serif;
+  font-size:17px;font-weight:700;
+  display:flex;align-items:center;gap:10px;
+  letter-spacing:0.01em;
+}
+.logo-badge{
+  width:28px;height:28px;border-radius:8px;
+  background:linear-gradient(135deg,var(--lav3),var(--lav2));
+  display:flex;align-items:center;justify-content:center;
+  font-size:14px;
+}
+.logo span{color:var(--muted);font-weight:400;}
+
+.topbar-center{
+  font-size:13px;color:var(--muted);
+  display:flex;align-items:center;gap:6px;
+}
+.dot-live{width:6px;height:6px;border-radius:50%;background:#86efac;
+  box-shadow:0 0 8px #86efac;animation:blink 2s infinite;}
+
+.topbar-right{
+  display:flex;align-items:center;gap:8px;
+}
+.badge{
+  font-size:11px;font-weight:500;padding:4px 10px;
+  border-radius:100px;
+  border:1px solid var(--border2);
+  color:var(--muted);
+  background:var(--surface);
+  letter-spacing:0.04em;
+}
+.badge.active{border-color:var(--lav2);color:var(--lav);background:rgba(124,58,237,0.15);}
+
+/* ── Canvas ── */
+#cvs-wrap{
+  position:fixed;inset:0;top:60px;
+  z-index:1;
+}
+canvas{display:block;width:100%;height:100%;}
+
+/* ── Node tooltip ── */
+#tooltip{
+  position:fixed;z-index:20;
+  background:var(--surface2);
+  border:1px solid var(--border2);
+  border-radius:10px;
+  padding:8px 14px;
+  font-size:12px;color:var(--text);
+  pointer-events:none;
+  opacity:0;
+  transition:opacity 0.15s;
+  backdrop-filter:blur(12px);
+  white-space:nowrap;
+}
+
+/* ── Side panel ── */
+#panel{
+  position:fixed;top:60px;right:0;bottom:0;
+  width:380px;z-index:30;
+  background:rgba(9,9,15,0.92);
+  backdrop-filter:blur(24px);
+  border-left:1px solid var(--border);
+  transform:translateX(100%);
+  transition:transform 0.4s cubic-bezier(0.16,1,0.3,1);
+  overflow-y:auto;display:flex;flex-direction:column;
+}
+#panel.open{transform:translateX(0);}
+
+.panel-header{
+  padding:28px 28px 20px;
+  border-bottom:1px solid var(--border);
+  position:sticky;top:0;
+  background:rgba(9,9,15,0.95);
+  z-index:2;
+}
+
+.panel-close{
+  position:absolute;top:20px;right:20px;
+  width:32px;height:32px;border-radius:8px;
+  background:var(--surface2);
+  border:1px solid var(--border);
+  color:var(--muted);font-size:16px;
+  cursor:pointer;display:flex;align-items:center;justify-content:center;
+  transition:all 0.2s;
+}
+.panel-close:hover{background:var(--surface);color:var(--text);border-color:var(--border2);}
+
+.panel-chip{
+  display:inline-flex;align-items:center;gap:6px;
+  font-size:11px;letter-spacing:0.1em;text-transform:uppercase;font-weight:500;
+  padding:4px 10px;border-radius:100px;
+  margin-bottom:14px;
+}
+
+.panel-title{
+  font-family:'Space Grotesk',sans-serif;
+  font-size:26px;font-weight:700;
+  line-height:1.15;
+  color:var(--text);
+  margin-bottom:6px;
+}
+
+.panel-sub{
+  font-size:13px;color:var(--muted);font-weight:300;
+}
+
+.panel-body{
+  padding:24px 28px;
+  flex:1;
+}
+
+.panel-section{
+  margin-bottom:24px;
+}
+
+.panel-label{
+  font-size:10px;letter-spacing:0.14em;text-transform:uppercase;
+  color:var(--muted);font-weight:500;margin-bottom:10px;
+}
+
+.panel-text{
+  font-size:14px;line-height:1.75;color:rgba(240,238,255,0.8);font-weight:300;
+}
+.panel-text strong{color:var(--text);font-weight:500;}
+
+.panel-tags{
+  display:flex;flex-wrap:wrap;gap:6px;
+}
+.tag{
+  font-size:11px;font-weight:400;
+  padding:5px 12px;border-radius:6px;
+  background:var(--surface2);
+  border:1px solid var(--border);
+  color:var(--muted);
+}
+
+.panel-highlight{
+  border-radius:12px;
+  padding:16px;
+  margin-top:4px;
+  font-size:13px;line-height:1.7;
+  border:1px solid;
+}
+
+/* connections list */
+.conn-list{display:flex;flex-direction:column;gap:6px;}
+.conn-item{
+  display:flex;align-items:center;gap:10px;
+  font-size:13px;color:rgba(240,238,255,0.7);
+  padding:8px 12px;border-radius:8px;
+  background:var(--surface2);
+  border:1px solid var(--border);
+  cursor:pointer;transition:all 0.2s;
+}
+.conn-item:hover{border-color:var(--border2);color:var(--text);}
+.conn-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+.conn-arrow{margin-left:auto;color:var(--muted);font-size:11px;}
+
+/* ── Legend ── */
+#legend{
+  position:fixed;bottom:24px;left:24px;z-index:20;
+  background:rgba(9,9,15,0.85);
+  backdrop-filter:blur(16px);
+  border:1px solid var(--border);
+  border-radius:14px;
+  padding:14px 18px;
+}
+.legend-title{font-size:10px;letter-spacing:0.12em;text-transform:uppercase;color:var(--muted);margin-bottom:10px;}
+.legend-row{display:flex;align-items:center;gap:8px;margin-bottom:6px;font-size:12px;color:rgba(240,238,255,0.7);}
+.legend-row:last-child{margin-bottom:0;}
+.legend-swatch{width:10px;height:10px;border-radius:3px;}
+
+/* ── Help ── */
+#help{
+  position:fixed;bottom:24px;right:24px;z-index:20;
+  background:rgba(9,9,15,0.85);
+  backdrop-filter:blur(16px);
+  border:1px solid var(--border);
+  border-radius:14px;
+  padding:14px 18px;
+  font-size:12px;color:var(--muted);
+  line-height:1.8;
+}
+
+/* ── Counter ── */
+#counter{
+  position:fixed;bottom:24px;left:50%;transform:translateX(-50%);
+  z-index:20;
+  background:rgba(9,9,15,0.85);
+  backdrop-filter:blur(16px);
+  border:1px solid var(--border);
+  border-radius:100px;
+  padding:8px 20px;
+  font-size:12px;color:var(--muted);
+  display:flex;align-items:center;gap:8px;
+}
+#counter b{color:var(--lav);font-family:'Space Grotesk',sans-serif;}
+
+@keyframes blink{0%,100%{opacity:1}50%{opacity:0.3}}
+
+/* scrollbar */
+#panel::-webkit-scrollbar{width:3px}
+#panel::-webkit-scrollbar-track{background:transparent}
+#panel::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
+
+@media(max-width:600px){
+  #panel{width:100%;top:60px;}
+  #legend,#help{display:none}
+}
+</style>
+</head>
+<body>
+
+<div class="blob blob1"></div>
+<div class="blob blob2"></div>
+<div class="blob blob3"></div>
+
+<div id="topbar">
+  <div class="logo">
+    <div class="logo-badge">⬡</div>
+    AI Agents <span>/ Explorer</span>
+  </div>
+  <div class="topbar-center">
+    <div class="dot-live"></div>
+    Interactive Knowledge Map
+  </div>
+  <div class="topbar-right">
+    <div class="badge">6 Concepts</div>
+    <div class="badge active">Click to explore</div>
+  </div>
+</div>
+
+<div id="cvs-wrap">
+  <canvas id="c"></canvas>
+</div>
+
+<div id="tooltip"></div>
+
+<!-- Side Panel -->
+<div id="panel">
+  <div class="panel-header">
+    <button class="panel-close" id="panel-close">✕</button>
+    <div class="panel-chip" id="p-chip"></div>
+    <div class="panel-title" id="p-title"></div>
+    <div class="panel-sub" id="p-sub"></div>
+  </div>
+  <div class="panel-body">
+    <div class="panel-section">
+      <div class="panel-label">Overview</div>
+      <div class="panel-text" id="p-body"></div>
+    </div>
+    <div class="panel-highlight" id="p-highlight"></div>
+    <div class="panel-section" style="margin-top:20px">
+      <div class="panel-label">Key Properties</div>
+      <div class="panel-tags" id="p-tags"></div>
+    </div>
+    <div class="panel-section" id="p-conn-wrap">
+      <div class="panel-label">Connections</div>
+      <div class="conn-list" id="p-conn"></div>
+    </div>
+  </div>
+</div>
+
+<div id="legend">
+  <div class="legend-title">Node Types</div>
+  <div class="legend-row"><div class="legend-swatch" style="background:#a78bfa"></div>Protocol / Standard</div>
+  <div class="legend-row"><div class="legend-swatch" style="background:#34d399"></div>Architecture</div>
+  <div class="legend-row"><div class="legend-swatch" style="background:#f472b6"></div>Capability</div>
+  <div class="legend-row"><div class="legend-swatch" style="background:#fbbf24"></div>Memory / State</div>
+</div>
+
+<div id="counter">
+  <b id="explored-count">0</b> / 6 concepts explored
+</div>
+
+<div id="help">
+  🖱 Click node to explore<br>
+  Hover to preview connections
+</div>
+
+<script>
+// ─── Data ────────────────────────────────────────────────────────────────────
+const DATA = {
+  mcp: {
+    label:'MCP', sub:'Model Context Protocol',
+    category:'Protocol', color:'#a78bfa', dim:'#3b1f8a',
+    icon:'⬡',
+    chip:'Universal Standard', chipBg:'rgba(167,139,250,0.15)', chipColor:'#a78bfa', chipBorder:'rgba(167,139,250,0.3)',
+    body:`A universal open standard by Anthropic for <strong>connecting AI apps to external data sources and tools</strong>. Think of it as "USB-C for AI" — one protocol that any MCP-compatible app can use to connect to any MCP server, eliminating custom integrations entirely.`,
+    highlight:`<strong>🔑 Key analogy:</strong> Just as USB-C standardized device connectivity, MCP standardizes how AI agents discover and call tools — making every agent instantly compatible with every MCP-enabled service.`,
+    hlBg:'rgba(167,139,250,0.08)', hlBorder:'rgba(167,139,250,0.25)', hlColor:'rgba(240,238,255,0.85)',
+    tags:['Open Standard','Anthropic','Tool Calling','Interoperability','Client-Server'],
+    core:true,
+    px:0.5, py:0.42
+  },
+  single:{
+    label:'Single-Agent', sub:'Architecture Pattern',
+    category:'Architecture', color:'#34d399', dim:'#064e3b',
+    icon:'◈',
+    chip:'Architecture', chipBg:'rgba(52,211,153,0.12)', chipColor:'#34d399', chipBorder:'rgba(52,211,153,0.25)',
+    body:`A system where <strong>one agent handles the entire pipeline</strong> — deciding when to search, summarize, or generate responses. The agent is simultaneously the user interface and context architect, managing the full task lifecycle autonomously.`,
+    highlight:`<strong>✓ Best for:</strong> Well-defined sequential tasks. A single agent can search → summarize → draft without coordination overhead.`,
+    hlBg:'rgba(52,211,153,0.08)', hlBorder:'rgba(52,211,153,0.25)', hlColor:'rgba(240,238,255,0.85)',
+    tags:['Unified Control','Sequential','Self-directing','Simple Setup','Low Latency'],
+    px:0.18, py:0.3
+  },
+  multi:{
+    label:'Multi-Agent', sub:'Architecture Pattern',
+    category:'Architecture', color:'#34d399', dim:'#064e3b',
+    icon:'⬡',
+    chip:'Architecture', chipBg:'rgba(52,211,153,0.12)', chipColor:'#34d399', chipBorder:'rgba(52,211,153,0.25)',
+    body:`Multiple <strong>specialized agents work in parallel</strong>, each handling specific roles toward a shared goal. An orchestrator decomposes the task; subagents execute concurrently. Results are merged for a unified response.`,
+    highlight:`<strong>⚡ Power move:</strong> A researcher, writer, and critic agent running simultaneously can complete in ⅓ the time of a single sequential agent.`,
+    hlBg:'rgba(52,211,153,0.08)', hlBorder:'rgba(52,211,153,0.25)', hlColor:'rgba(240,238,255,0.85)',
+    tags:['Parallel Processing','Specialization','Orchestration','Scalable','Fault-tolerant'],
+    px:0.82, py:0.3
+  },
+  skills:{
+    label:'Skills', sub:'Agent Capabilities',
+    category:'Capability', color:'#f472b6', dim:'#831843',
+    icon:'◎',
+    chip:'Capability Layer', chipBg:'rgba(244,114,182,0.12)', chipColor:'#f472b6', chipBorder:'rgba(244,114,182,0.25)',
+    body:`The specific <strong>tools and capabilities an agent can invoke</strong> to interact with the world — database queries, API calls, web search, code execution, file I/O, and more. Skills transform a passive model into an active agent.`,
+    highlight:`<strong>🛠 Building blocks:</strong> Skills are registered at startup. The agent reasons which to call, constructs the request, and integrates results back into its context window.`,
+    hlBg:'rgba(244,114,182,0.08)', hlBorder:'rgba(244,114,182,0.25)', hlColor:'rgba(240,238,255,0.85)',
+    tags:['API Calls','Web Search','Code Execution','Database','File I/O'],
+    px:0.2, py:0.7
+  },
+  rag:{
+    label:'Agentic RAG', sub:'Retrieval-Augmented Generation',
+    category:'Capability', color:'#f472b6', dim:'#831843',
+    icon:'◉',
+    chip:'Retrieval Strategy', chipBg:'rgba(244,114,182,0.12)', chipColor:'#f472b6', chipBorder:'rgba(244,114,182,0.25)',
+    body:`AI agent-orchestrated <strong>Retrieval-Augmented Generation</strong> that goes beyond static retrieval. The agent dynamically routes queries, validates retrieved chunks, reformulates searches, and decides when re-retrieval is necessary.`,
+    highlight:`<strong>🔄 vs Traditional RAG:</strong> Static RAG retrieves once and answers. Agentic RAG iterates — evaluating quality, querying multiple sources, and adapting until it's confident in the result.`,
+    hlBg:'rgba(244,114,182,0.08)', hlBorder:'rgba(244,114,182,0.25)', hlColor:'rgba(240,238,255,0.85)',
+    tags:['Dynamic Routing','Re-retrieval','Validation','Adaptive','Multi-source'],
+    px:0.8, py:0.7
+  },
+  memory:{
+    label:'Memory', sub:'Context & State',
+    category:'Memory', color:'#fbbf24', dim:'#78350f',
+    icon:'◇',
+    chip:'State Management', chipBg:'rgba(251,191,36,0.12)', chipColor:'#fbbf24', chipBorder:'rgba(251,191,36,0.25)',
+    body:`The component that <strong>stores context, interactions, and data across task execution</strong>. Short-term memory lives in the active context window; long-term memory persists in external stores and is retrieved on demand.`,
+    highlight:`<strong>🧠 Memory layers:</strong><br>• <em>In-context</em> — fast, ephemeral, limited<br>• <em>External</em> — vector DBs, key-value stores<br>• <em>Procedural</em> — learned behaviors`,
+    hlBg:'rgba(251,191,36,0.08)', hlBorder:'rgba(251,191,36,0.25)', hlColor:'rgba(240,238,255,0.85)',
+    tags:['Short-term','Long-term','Write Control','Deduplication','Retrieval'],
+    px:0.5, py:0.84
+  }
+};
+
+const EDGES=[
+  {a:'mcp',b:'single',label:'enables',dir:1},
+  {a:'mcp',b:'multi',label:'enables',dir:1},
+  {a:'mcp',b:'skills',label:'exposes',dir:1},
+  {a:'mcp',b:'rag',label:'exposes',dir:1},
+  {a:'mcp',b:'memory',label:'connects',dir:1},
+  {a:'single',b:'skills',label:'uses',dir:1},
+  {a:'single',b:'memory',label:'reads',dir:1},
+  {a:'multi',b:'skills',label:'uses',dir:1},
+  {a:'multi',b:'memory',label:'shares',dir:1},
+  {a:'skills',b:'rag',label:'powers',dir:1},
+  {a:'rag',b:'memory',label:'writes to',dir:1},
+];
+
+// ─── Canvas ──────────────────────────────────────────────────────────────────
+const cvs = document.getElementById('c');
+const ctx2 = cvs.getContext('2d');
+let W,H,DPR=window.devicePixelRatio||1;
+let hovered=null, selected=null, t=0;
+const explored=new Set();
+
+function resize(){
+  const wrap=document.getElementById('cvs-wrap');
+  W=wrap.clientWidth; H=wrap.clientHeight;
+  cvs.width=W*DPR; cvs.height=H*DPR;
+  cvs.style.width=W+'px'; cvs.style.height=H+'px';
+  ctx2.scale(DPR,DPR);
+}
+resize();
+window.addEventListener('resize',resize);
+
+function npos(n){return{x:n.px*W, y:n.py*H};}
+
+// ─── Draw helpers ─────────────────────────────────────────────────────────────
+function hexToRgb(hex){
+  const r=parseInt(hex.slice(1,3),16),g=parseInt(hex.slice(3,5),16),b=parseInt(hex.slice(5,7),16);
+  return `${r},${g},${b}`;
+}
+
+function drawEdge(a,b,label,alpha,animated){
+  const ap=npos(a), bp=npos(b);
+  const dx=bp.x-ap.x, dy=bp.y-ap.y, len=Math.sqrt(dx*dx+dy*dy);
+  const ux=dx/len, uy=dy/len;
+  const ra=a.core?52:38, rb=b.core?52:38;
+  const sx=ap.x+ux*ra, sy=ap.y+uy*ra;
+  const ex=bp.x-ux*rb, ey=bp.y-uy*rb;
+  const cpx=(sx+ex)/2-uy*35, cpy=(sy+ey)/2+ux*35;
+
+  ctx2.save();
+  ctx2.globalAlpha=alpha;
+
+  if(animated){
+    // Animated dash
+    ctx2.beginPath();
+    ctx2.moveTo(sx,sy);
+    ctx2.quadraticCurveTo(cpx,cpy,ex,ey);
+    ctx2.strokeStyle=a.color;
+    ctx2.lineWidth=1.5;
+    ctx2.setLineDash([6,10]);
+    ctx2.lineDashOffset=-(t*0.04%16);
+    ctx2.stroke();
+    ctx2.setLineDash([]);
+  } else {
+    ctx2.beginPath();
+    ctx2.moveTo(sx,sy);
+    ctx2.quadraticCurveTo(cpx,cpy,ex,ey);
+    ctx2.strokeStyle='rgba(255,255,255,0.06)';
+    ctx2.lineWidth=1;
+    ctx2.stroke();
+  }
+
+  // Arrow
+  if(animated){
+    const ang=Math.atan2(ey-cpy,ex-cpx);
+    ctx2.beginPath();
+    ctx2.moveTo(ex,ey);
+    ctx2.lineTo(ex-9*Math.cos(ang-0.4),ey-9*Math.sin(ang-0.4));
+    ctx2.lineTo(ex-9*Math.cos(ang+0.4),ey-9*Math.sin(ang+0.4));
+    ctx2.closePath();
+    ctx2.fillStyle=a.color;
+    ctx2.globalAlpha=alpha*0.9;
+    ctx2.fill();
+
+    // Label
+    ctx2.font="500 10px 'Plus Jakarta Sans',sans-serif";
+    ctx2.fillStyle=a.color;
+    ctx2.globalAlpha=alpha*0.8;
+    ctx2.textAlign='center';
+    ctx2.textBaseline='middle';
+    ctx2.fillText(label, cpx, cpy-12);
+  }
+  ctx2.restore();
+}
+
+function drawNode(n,pulse){
+  const {x,y}=npos(n);
+  const isHov=hovered===n;
+  const isSel=selected===n;
+  const isCore=n.core;
+  const r=isCore?52:38;
+  const rgb=hexToRgb(n.color);
+
+  ctx2.save();
+
+  // Outer glow rings
+  if(isCore||isSel||isHov){
+    const ring2=r+(isCore?28+Math.sin(t*0.03)*6:22);
+    const grd2=ctx2.createRadialGradient(x,y,r,x,y,ring2);
+    grd2.addColorStop(0,`rgba(${rgb},0.15)`);
+    grd2.addColorStop(1,`rgba(${rgb},0)`);
+    ctx2.beginPath();ctx2.arc(x,y,ring2,0,Math.PI*2);
+    ctx2.fillStyle=grd2;ctx2.fill();
+  }
+
+  // Pulse ring for core
+  if(isCore){
+    const pr=r+14+Math.sin(t*0.04)*8;
+    ctx2.beginPath();ctx2.arc(x,y,pr,0,Math.PI*2);
+    ctx2.strokeStyle=`rgba(${rgb},0.2)`;
+    ctx2.lineWidth=1.5;ctx2.stroke();
+
+    const pr2=r+30+Math.sin(t*0.025+1)*12;
+    ctx2.beginPath();ctx2.arc(x,y,pr2,0,Math.PI*2);
+    ctx2.strokeStyle=`rgba(${rgb},0.08)`;
+    ctx2.lineWidth=1;ctx2.stroke();
+  }
+
+  // Hover ring
+  if(isHov&&!isCore){
+    ctx2.beginPath();ctx2.arc(x,y,r+10,0,Math.PI*2);
+    ctx2.strokeStyle=`rgba(${rgb},0.35)`;
+    ctx2.lineWidth=1.5;ctx2.stroke();
+  }
+
+  // Selection ring
+  if(isSel){
+    ctx2.beginPath();ctx2.arc(x,y,r+6,0,Math.PI*2);
+    ctx2.strokeStyle=n.color;
+    ctx2.lineWidth=2;
+    ctx2.setLineDash([4,4]);
+    ctx2.lineDashOffset=-(t*0.05%8);
+    ctx2.stroke();
+    ctx2.setLineDash([]);
+  }
+
+  // Node fill
+  const grd=ctx2.createRadialGradient(x-r*0.3,y-r*0.3,2,x,y,r);
+  grd.addColorStop(0,`rgba(${rgb},0.22)`);
+  grd.addColorStop(1,`rgba(${rgb},0.06)`);
+  ctx2.beginPath();ctx2.arc(x,y,r,0,Math.PI*2);
+  ctx2.fillStyle=grd;ctx2.fill();
+
+  // Border
+  ctx2.beginPath();ctx2.arc(x,y,r,0,Math.PI*2);
+  ctx2.strokeStyle=isSel||isHov
+    ? `rgba(${rgb},0.9)`
+    : `rgba(${rgb},0.35)`;
+  ctx2.lineWidth=isHov||isSel?2:1.5;
+  ctx2.stroke();
+
+  // Inner shine
+  const shine=ctx2.createLinearGradient(x-r,y-r,x+r*0.3,y+r*0.3);
+  shine.addColorStop(0,`rgba(255,255,255,0.06)`);
+  shine.addColorStop(1,'transparent');
+  ctx2.beginPath();ctx2.arc(x,y,r,0,Math.PI*2);
+  ctx2.fillStyle=shine;ctx2.fill();
+
+  // Icon
+  ctx2.font=`${isCore?24:18}px 'Plus Jakarta Sans',sans-serif`;
+  ctx2.fillStyle=n.color;
+  ctx2.textAlign='center';
+  ctx2.textBaseline='middle';
+  ctx2.fillText(n.icon,x,y-(isCore?11:8));
+
+  // Label
+  ctx2.font=`600 ${isCore?13:11}px 'Space Grotesk',sans-serif`;
+  ctx2.fillStyle=isHov||isSel?n.color:'rgba(240,238,255,0.9)';
+  ctx2.textAlign='center';
+  ctx2.textBaseline='middle';
+  ctx2.fillText(n.label,x,y+(isCore?10:8));
+
+  // Explored dot
+  if(explored.has(n)){
+    ctx2.beginPath();ctx2.arc(x+r*0.62,y-r*0.62,5,0,Math.PI*2);
+    ctx2.fillStyle=n.color;ctx2.fill();
+    ctx2.beginPath();ctx2.arc(x+r*0.62,y-r*0.62,5,0,Math.PI*2);
+    ctx2.strokeStyle='var(--bg)';ctx2.lineWidth=2;ctx2.stroke();
+  }
+
+  ctx2.restore();
+}
+
+// ─── Render loop ──────────────────────────────────────────────────────────────
+function render(){
+  ctx2.clearRect(0,0,W,H);
+  t++;
+
+  const nodes=Object.values(DATA);
+
+  // Edges
+  EDGES.forEach(e=>{
+    const an=DATA[e.a], bn=DATA[e.b];
+    const isActive=hovered===an||hovered===bn||selected===an||selected===bn;
+    drawEdge(an,bn,e.label, isActive?0.9:0.3, isActive);
+  });
+
+  // Nodes
+  nodes.forEach(n=>drawNode(n));
+
+  requestAnimationFrame(render);
+}
+render();
+
+// ─── Input ────────────────────────────────────────────────────────────────────
+function getNode(cx,cy){
+  const rect=cvs.getBoundingClientRect();
+  const mx=(cx-rect.left), my=(cy-rect.top);
+  return Object.values(DATA).find(n=>{
+    const p=npos(n);
+    const r=n.core?54:42;
+    return Math.hypot(mx-p.x,my-p.y)<r;
+  });
+}
+
+const tooltip=document.getElementById('tooltip');
+cvs.addEventListener('mousemove',e=>{
+  const n=getNode(e.clientX,e.clientY);
+  hovered=n||null;
+  cvs.style.cursor=n?'pointer':'default';
+  if(n&&n!==selected){
+    tooltip.style.opacity='1';
+    tooltip.style.left=(e.clientX+14)+'px';
+    tooltip.style.top=(e.clientY-10)+'px';
+    tooltip.textContent=n.sub;
+  } else {
+    tooltip.style.opacity='0';
+  }
+});
+cvs.addEventListener('mouseleave',()=>{hovered=null;tooltip.style.opacity='0';});
+
+cvs.addEventListener('click',e=>{
+  const n=getNode(e.clientX,e.clientY);
+  if(n){openPanel(n);}
+  else if(!e.target.closest('#panel')){closePanel();}
+});
+
+cvs.addEventListener('touchend',e=>{
+  e.preventDefault();
+  const t=e.changedTouches[0];
+  const n=getNode(t.clientX,t.clientY);
+  if(n) openPanel(n);
+},{passive:false});
+
+// ─── Panel ────────────────────────────────────────────────────────────────────
+function openPanel(n){
+  selected=n;
+  explored.add(n);
+  document.getElementById('explored-count').textContent=explored.size;
+
+  const chip=document.getElementById('p-chip');
+  chip.textContent=n.chip;
+  chip.style.background=n.chipBg;
+  chip.style.color=n.chipColor;
+  chip.style.border=`1px solid ${n.chipBorder}`;
+
+  document.getElementById('p-title').textContent=n.label;
+  document.getElementById('p-sub').textContent=n.sub;
+  document.getElementById('p-body').innerHTML=n.body;
+
+  const hl=document.getElementById('p-highlight');
+  hl.innerHTML=n.highlight;
+  hl.style.background=n.hlBg;
+  hl.style.borderColor=n.hlBorder;
+  hl.style.color=n.hlColor;
+  hl.style.fontSize='13px';
+  hl.style.lineHeight='1.7';
+
+  const tagsEl=document.getElementById('p-tags');
+  tagsEl.innerHTML=n.tags.map(t=>`<span class="tag">${t}</span>`).join('');
+
+  // Connections
+  const conns=EDGES.filter(e=>e.a===n.id||e.b===n.id);
+  const connEl=document.getElementById('p-conn');
+  connEl.innerHTML=conns.map(e=>{
+    const other=DATA[e.a===n.id?e.b:e.a];
+    const dir=e.a===n.id?'→':'←';
+    return `<div class="conn-item" onclick="openPanel(DATA['${other.id}'])">
+      <div class="conn-dot" style="background:${other.color}"></div>
+      <span>${dir} ${other.label}</span>
+      <span style="color:${n.color};font-size:11px">${e.label}</span>
+      <span class="conn-arrow">›</span>
+    </div>`;
+  }).join('');
+
+  document.getElementById('panel').classList.add('open');
+}
+
+function closePanel(){
+  selected=null;
+  document.getElementById('panel').classList.remove('open');
+}
+
+document.getElementById('panel-close').addEventListener('click',closePanel);
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closePanel();});
+</script>
+</body>
+</html>
